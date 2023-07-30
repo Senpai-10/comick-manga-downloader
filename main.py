@@ -136,7 +136,7 @@ def main():
     args = parser.parse_args()
 
     url: str = args.url
-    cf_clearance: str = args.cf_clearance or os.getenv("CF_CLEARANCE") or ""
+    cf_clearance: str = args.cf_clearance or os.getenv("COMICK_CF_CLEARANCE") or ""
     output_directory: str = args.output or url.split("/")[-2]
     stop_after: str = args.stop_after
     force_redownload: bool = args.force
