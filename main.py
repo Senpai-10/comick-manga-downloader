@@ -1,9 +1,11 @@
+import argparse
 import os
 import re
 import time
-import argparse
 
 import requests
+from rich.progress import BarColumn, Progress, TextColumn
+from rich.table import Column
 from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.common.by import By
