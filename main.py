@@ -4,7 +4,14 @@ import re
 import time
 
 import requests
-from rich import progress
+from rich.progress import (
+    BarColumn,
+    MofNCompleteColumn,
+    Progress,
+    TextColumn,
+    TimeElapsedColumn,
+    TimeRemainingColumn,
+)
 from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.common.by import By
@@ -64,6 +71,7 @@ def find_next_chapter_button(driver: WebDriver):
 
 
 def download_images(driver: WebDriver, output_directory: str, chapter: str):
+    driver.refresh()
     img_elements = driver.find_elements(By.TAG_NAME, "img")
 
     images = []
@@ -84,23 +92,35 @@ def download_images(driver: WebDriver, output_directory: str, chapter: str):
 
         images.append(img)
 
-    for image in progress.track(images, description=f"Downloading chapter {chapter}"):
-        image_src = image.get_attribute("src")
-        image_alt = image.get_attribute("alt")
+    progress_bar = Progress(
+        TextColumn(f"Chapter {chapter}"),
+        TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+        BarColumn(),
+        MofNCompleteColumn(),
+        TextColumn("•"),
+        TimeElapsedColumn(),
+        TextColumn("•"),
+        TimeRemainingColumn(),
+    )
 
-        if image_alt:
-            page = extract_page_number(image_alt)
+    with progress_bar as p:
+        for image in p.track(images, description=f"Downloading chapter {chapter}"):
+            image_src = image.get_attribute("src")
+            image_alt = image.get_attribute("alt")
 
-            if not os.path.exists(f"{output_directory}/chapters/{chapter}"):
-                os.mkdir(f"{output_directory}/chapters/{chapter}")
+            if image_alt:
+                page = extract_page_number(image_alt)
 
-            if image_src != None:
-                file_extension = extract_file_extension(image_src)
-                with open(
-                    f"{output_directory}/chapters/{chapter}/{page}.{file_extension}",
-                    "wb",
-                ) as f:
-                    f.write(requests.get(image_src).content)
+                if not os.path.exists(f"{output_directory}/chapters/{chapter}"):
+                    os.mkdir(f"{output_directory}/chapters/{chapter}")
+
+                if image_src != None:
+                    file_extension = extract_file_extension(image_src)
+                    with open(
+                        f"{output_directory}/chapters/{chapter}/{page}.{file_extension}",
+                        "wb",
+                    ) as f:
+                        f.write(requests.get(image_src).content)
 
 
 def main():
