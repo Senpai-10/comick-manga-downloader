@@ -4,8 +4,7 @@ import re
 import time
 
 import requests
-from rich.progress import BarColumn, Progress, TextColumn
-from rich.table import Column
+from rich import progress
 from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.common.by import By
@@ -85,14 +84,12 @@ def download_images(driver: WebDriver, output_directory: str, chapter: str):
 
         images.append(img)
 
-    for image in images:
+    for image in progress.track(images, description=f"Downloading chapter {chapter}"):
         image_src = image.get_attribute("src")
         image_alt = image.get_attribute("alt")
 
         if image_alt:
             page = extract_page_number(image_alt)
-
-            print(f"Downloading: page: {page}, chapter: {chapter}")
 
             if not os.path.exists(f"{output_directory}/chapters/{chapter}"):
                 os.mkdir(f"{output_directory}/chapters/{chapter}")
@@ -104,9 +101,6 @@ def download_images(driver: WebDriver, output_directory: str, chapter: str):
                     "wb",
                 ) as f:
                     f.write(requests.get(image_src).content)
-                print("Done.")
-
-    print("done downloading")
 
 
 def main():
@@ -195,7 +189,6 @@ def main():
 
         next_chapter_button: WebElement | None = find_next_chapter_button(driver)
         if next_chapter_button:
-            print("next chapter")
             next_chapter_button.click()
         else:
             print("Last chapter reached")
