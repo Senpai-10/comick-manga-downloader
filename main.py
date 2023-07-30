@@ -141,6 +141,7 @@ def main():
     stop_after: str = args.stop_after
     force_redownload: bool = args.force
 
+    assert len(url) != 0
     assert len(cf_clearance) != 0
 
     options = Options()
