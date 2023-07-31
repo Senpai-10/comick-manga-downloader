@@ -127,7 +127,7 @@ def main():
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
-        "--url", type=str, required=False, help="Chapter url to start downloading from"
+        "--url", type=str, required=False, help="Chapter url to get chapters list (example: 'https://comick.app/comic/bleach/AgV11-chapter-1-en')"
     )
     parser.add_argument(
         "--output",
@@ -140,7 +140,7 @@ def main():
         type=str,
         required=False,
         default="*",
-        help="Stop downloading after n chapter (Example: --stop-after 10, will not download anything after chapter 10)",
+        help="Chapters to download, can be '1,2,3,4,5'/'1,2,3,4,5-10'/'1-10','*'. A '*' to downloads all",
     )
 
     args = parser.parse_args()
