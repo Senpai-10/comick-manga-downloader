@@ -1,8 +1,9 @@
 import argparse
+from dataclasses import dataclass, field
 import os
+import random
 import re
 import time
-import random
 
 import requests
 from rich.progress import (
@@ -13,24 +14,17 @@ from rich.progress import (
     TimeElapsedColumn,
     TimeRemainingColumn,
 )
-
-# from selenium import webdriver
-from selenium.common.exceptions import (
-    NoSuchElementException,
-    StaleElementReferenceException,
-)
-from selenium.webdriver.common.by import By
-
+from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.webdriver import WebDriver
-
+from selenium.webdriver.common.by import By
 import undetected_chromedriver as uc
-from dataclasses import dataclass, field
 
 
 @dataclass
 class Page:
     number: str
+    file_extension: str
     image_url: str
 
 
@@ -61,7 +55,7 @@ def extract_page_number(text: str) -> str:
     if m:
         return m.group().split()[1]
 
-    return "0"
+    return "cover"
 
 
 def extract_file_extension(text: str):
@@ -114,8 +108,9 @@ def collect_pages(driver: WebDriver) -> list[Page]:
 
         if image_alt:
             page_number = extract_page_number(image_alt)
+            file_ext = extract_file_extension(image_src)
 
-            page = Page(page_number, image_src)
+            page = Page(page_number, file_ext, image_src)
 
             pages.append(page)
 
@@ -293,10 +288,32 @@ def main():
         print(f"Collecting pages for chapter {chapter.number}")
         chapter.pages = collect_pages(driver)
 
-    if not os.path.exists(output_directory):
-        os.mkdir(output_directory)
     if not os.path.exists(f"{output_directory}/chapters"):
-        os.mkdir(f"{output_directory}/chapters")
+        os.makedirs(f"{output_directory}/chapters")
+
+    # Download chapters
+    for chapter in chapters:
+        if not os.path.exists(f"{output_directory}/chapters/{chapter.number}"):
+            os.mkdir(f"{output_directory}/chapters/{chapter.number}")
+
+        for page in chapter.pages:
+            if page.number == "cover":
+                if not os.path.exists(
+                    f"{output_directory}/cover.{page.file_extension}"
+                ):
+                    with open(
+                        f"{output_directory}/cover.{page.file_extension}",
+                        "wb",
+                    ) as f:
+                        f.write(requests.get(page.image_url).content)
+                continue
+
+            print(f"Downloading chapter({chapter.number}) page({page.number})")
+            with open(
+                f"{output_directory}/chapters/{chapter.number}/{page.number}.{page.file_extension}",
+                "wb",
+            ) as f:
+                f.write(requests.get(page.image_url).content)
 
     # while True:
     #     chapter = extract_chapter_number(driver.current_url)
