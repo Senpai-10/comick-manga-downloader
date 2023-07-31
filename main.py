@@ -251,6 +251,7 @@ def main():
         # No view page button found!
         ...
 
+    print("Collecting chapters")
     info_container = driver.find_elements(By.CLASS_NAME, "info-reader-container")[0]
 
     selectors = info_container.find_elements(By.TAG_NAME, "select")[0]
@@ -281,6 +282,7 @@ def main():
         if "*" in chapters_to_download or ch.number in chapters_to_download:
             chapters.append(ch)
 
+    print("Collecting pages")
     # Collecting pages
     for chapter in chapters:
         driver.get(chapter.url)
