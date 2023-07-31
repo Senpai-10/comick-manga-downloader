@@ -135,11 +135,6 @@ def main():
         help="Output directory (Default: use manga name in the url)",
     )
     parser.add_argument(
-        "--force",
-        action="store_true",
-        help="Redownload all chapters",
-    )
-    parser.add_argument(
         "--chapters",
         type=str,
         required=False,
@@ -151,7 +146,6 @@ def main():
 
     url: str = args.url
     output_directory: str = args.output or url.split("/")[-2]
-    force_redownload: bool = args.force
     chapters_str: str = args.chapters
     chapters_to_download: list[str] = []
 
