@@ -15,7 +15,10 @@ from rich.progress import (
 )
 
 # from selenium import webdriver
-from selenium.common.exceptions import StaleElementReferenceException
+from selenium.common.exceptions import (
+    NoSuchElementException,
+    StaleElementReferenceException,
+)
 from selenium.webdriver.common.by import By
 
 from selenium.webdriver.chrome.options import Options
@@ -238,6 +241,18 @@ def main():
     driver = uc.Chrome(options)
     driver.get(url)
 
+    try:
+        view_page_button = driver.find_element(
+            By.XPATH,
+            "/html/body/div[2]/div/div/div/div[2]/div[2]/div/div/div/div[3]/div/button",
+        )
+
+        print("skipping age verification")
+        view_page_button.click()
+    except NoSuchElementException:
+        # No view page button found!
+        ...
+
     info_container = driver.find_elements(By.CLASS_NAME, "info-reader-container")[0]
 
     selectors = info_container.find_elements(By.TAG_NAME, "select")[0]
@@ -278,18 +293,6 @@ def main():
         os.mkdir(output_directory)
     if not os.path.exists(f"{output_directory}/chapters"):
         os.mkdir(f"{output_directory}/chapters")
-
-    # try:
-    #     view_page_button = driver.find_element(
-    #         By.XPATH,
-    #         "/html/body/div[2]/div/div/div/div[2]/div[2]/div/div/div/div[3]/div/button",
-    #     )
-
-    #     print("skipping age verification")
-    #     view_page_button.click()
-    # except NoSuchElementException:
-    #     # No view page button found!
-    #     ...
 
     # while True:
     #     chapter = extract_chapter_number(driver.current_url)
