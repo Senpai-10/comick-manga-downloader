@@ -174,17 +174,21 @@ def download_images(driver: WebDriver, output_directory: str, chapter: str):
                         f.write(requests.get(image_src).content)
 
 
+def expand_range(num: str) -> list[str]:
+    l = []
+
+    start, end = num.split("-")
+    for j in range(int(start), int(end) + 1):
+        l.append(str(j))
+
+    return l
+
+
 def main():
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
         "--url", type=str, required=True, help="Chapter url to start downloading from"
-    )
-    parser.add_argument(
-        "--cf-clearance",
-        type=str,
-        required=False,
-        help="Cloud flare clearance key, used to not be detected as a bot",
     )
     parser.add_argument(
         "--output",
@@ -193,44 +197,43 @@ def main():
         help="Output directory (Default: use manga name in the url)",
     )
     parser.add_argument(
-        "--stop-after",
-        type=str,
-        required=False,
-        help="Stop downloading after n chapter (Example: --stop-after 10, will not download anything after chapter 10)",
-    )
-    parser.add_argument(
         "--force",
         action="store_true",
         help="Redownload all chapters",
     )
     parser.add_argument(
-        "--force-chapter",
-        nargs="+",
+        "--chapters",
         type=str,
-        help="Redownload list of chapters (Example: --force-chapter 1, 2, 3 | will redownload chapter 1, 2 and 3)",
+        required=False,
+        default="*",
+        help="Stop downloading after n chapter (Example: --stop-after 10, will not download anything after chapter 10)",
     )
 
     args = parser.parse_args()
 
     url: str = args.url
-    cf_clearance: str = args.cf_clearance or os.getenv("COMICK_CF_CLEARANCE") or ""
     output_directory: str = args.output or url.split("/")[-2]
-    stop_after: str = args.stop_after
     force_redownload: bool = args.force
-    force_redownload_chapter = []
+    chapters_str: str = args.chapters
+    chapters_to_download: list[str] = []
 
-    # expand ranges in list
-    for i in args.force_chapter or []:
-        if "-" in i:
-            start, end = i.split("-")
-            for j in range(int(start), int(end) + 1):
-                if str(j) not in force_redownload_chapter:
-                    force_redownload_chapter.append(str(j))
+    if "," in chapters_str:
+        num = chapters_str.split(",")
+
+        for i in num:
+            if "-" in i:
+                for j in expand_range(i):
+                    chapters_to_download.append(j)
+            else:
+                chapters_to_download.append(i)
+    else:
+        if "-" in chapters_str:
+            for j in expand_range(chapters_str):
+                chapters_to_download.append(j)
         else:
-            force_redownload_chapter.append(i)
+            chapters_to_download.append(chapters_str)
 
     assert len(url) != 0
-    assert len(cf_clearance) != 0
 
     options = Options()
 
@@ -280,7 +283,8 @@ def main():
             f"{manga_url}/{chapter_id}-chapter-{chapter_number}-en",
         )
 
-        chapters.append(ch)
+        if "*" in chapters_to_download or ch.number in chapters_to_download:
+            chapters.append(ch)
 
     # Collecting pages
     for chapter in chapters:
