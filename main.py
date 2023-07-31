@@ -237,13 +237,6 @@ def main():
     print(f"Opening web browser, please wait!")
     driver = uc.Chrome(options)
     driver.get(url)
-    # driver.delete_cookie("cf_clearance")
-    # driver.add_cookie({"name": "cf_clearance", "value": cf_clearance})
-
-    if not os.path.exists(output_directory):
-        os.mkdir(output_directory)
-    if not os.path.exists(f"{output_directory}/chapters"):
-        os.mkdir(f"{output_directory}/chapters")
 
     info_container = driver.find_elements(By.CLASS_NAME, "info-reader-container")[0]
 
@@ -280,6 +273,11 @@ def main():
 
         print(f"Collecting pages for chapter {chapter.number}")
         chapter.pages = collect_pages(driver)
+
+    if not os.path.exists(output_directory):
+        os.mkdir(output_directory)
+    if not os.path.exists(f"{output_directory}/chapters"):
+        os.mkdir(f"{output_directory}/chapters")
 
     # try:
     #     view_page_button = driver.find_element(
