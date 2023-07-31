@@ -1,5 +1,1 @@
-put CF_CLEARANCE in config.json or in interactive shell
-add option for stop after chapter
 
-add --url, -u option or ask for url
-add --output, -o option for output directory name
