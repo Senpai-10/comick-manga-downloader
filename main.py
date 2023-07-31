@@ -78,20 +78,8 @@ def is_cover_image(image_src: str) -> bool:
         return False
 
 
-def find_next_chapter_button(driver: WebDriver) -> str | None:
-    driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-
-    div = driver.find_element(
-        By.CSS_SELECTOR, ".images-reader-container > div:nth-child(2)"
-    )
-
-    a_tags = div.find_elements(By.TAG_NAME, "a")
-
-    for i in a_tags:
-        text = i.find_elements(By.TAG_NAME, "button")[0].text
-        if text.startswith("Next"):
-            print(i.get_attribute("href"))
-            return i.get_attribute("href")
+COVER = None
+COVER_FILE_NAME = None
 
 
 def collect_pages(driver: WebDriver) -> list[Page]:
@@ -112,61 +100,16 @@ def collect_pages(driver: WebDriver) -> list[Page]:
 
             page = Page(page_number, file_ext, image_src)
 
+            if page.number == "cover":
+                global COVER
+                global COVER_FILE_NAME
+                COVER = page.image_url
+                COVER_FILE_NAME = f"cover.{page.file_extension}"
+                continue
+
             pages.append(page)
 
     return pages
-
-
-def download_images(driver: WebDriver, output_directory: str, chapter: str):
-    img_elements = driver.find_elements(By.TAG_NAME, "img")
-
-    images = []
-
-    for img in img_elements:
-        src = img.get_attribute("src")
-
-        if not src or not ".pictures/" in src:
-            continue
-
-        if is_cover_image(src):
-            file_ext = extract_file_extension(src)
-            if not os.path.exists(f"{output_directory}/cover.{file_ext}"):
-                print("downloading cover image")
-                with open(f"{output_directory}/cover.{file_ext}", "wb") as f:
-                    f.write(requests.get(src).content)
-            continue
-
-        images.append(img)
-
-    progress_bar = Progress(
-        TextColumn(f"Chapter {chapter}"),
-        TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-        BarColumn(),
-        MofNCompleteColumn(),
-        TextColumn("•"),
-        TimeElapsedColumn(),
-        TextColumn("•"),
-        TimeRemainingColumn(),
-    )
-
-    with progress_bar as p:
-        for image in p.track(images, description=f"Downloading chapter {chapter}"):
-            image_src = image.get_attribute("src")
-            image_alt = image.get_attribute("alt")
-
-            if image_alt:
-                page = extract_page_number(image_alt)
-
-                if not os.path.exists(f"{output_directory}/chapters/{chapter}"):
-                    os.mkdir(f"{output_directory}/chapters/{chapter}")
-
-                if image_src != None:
-                    file_extension = extract_file_extension(image_src)
-                    with open(
-                        f"{output_directory}/chapters/{chapter}/{page}.{file_extension}",
-                        "wb",
-                    ) as f:
-                        f.write(requests.get(image_src).content)
 
 
 def expand_range(num: str) -> list[str]:
@@ -290,60 +233,44 @@ def main():
         print(f"Collecting pages for chapter {chapter.number}")
         chapter.pages = collect_pages(driver)
 
+        time.sleep(random.uniform(0.100, 0.900))
+
     if not os.path.exists(f"{output_directory}/chapters"):
         os.makedirs(f"{output_directory}/chapters")
+
+    if not os.path.exists(f"{output_directory}/{COVER_FILE_NAME}"):
+        if COVER:
+            with open(
+                f"{output_directory}/{COVER_FILE_NAME}",
+                "wb",
+            ) as f:
+                f.write(requests.get(COVER).content)
 
     # Download chapters
     for chapter in chapters:
         if not os.path.exists(f"{output_directory}/chapters/{chapter.number}"):
             os.mkdir(f"{output_directory}/chapters/{chapter.number}")
 
-        for page in chapter.pages:
-            if page.number == "cover":
-                if not os.path.exists(
-                    f"{output_directory}/cover.{page.file_extension}"
-                ):
-                    with open(
-                        f"{output_directory}/cover.{page.file_extension}",
-                        "wb",
-                    ) as f:
-                        f.write(requests.get(page.image_url).content)
-                continue
+        progress_bar = Progress(
+            TextColumn(f"Chapter {chapter.number}"),
+            TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+            BarColumn(),
+            MofNCompleteColumn(),
+            TextColumn("•"),
+            TimeElapsedColumn(),
+            TextColumn("•"),
+            TimeRemainingColumn(),
+        )
 
-            print(f"Downloading chapter({chapter.number}) page({page.number})")
-            with open(
-                f"{output_directory}/chapters/{chapter.number}/{page.number}.{page.file_extension}",
-                "wb",
-            ) as f:
-                f.write(requests.get(page.image_url).content)
-
-    # while True:
-    #     chapter = extract_chapter_number(driver.current_url)
-
-    #     if (
-    #         os.path.exists(f"{output_directory}/chapters/{chapter}")
-    #         and force_redownload == False
-    #         and not chapter in force_redownload_chapter
-    #     ):
-    #         print(f"chapter: {chapter}, already downloaded skipping")
-    #     else:
-    #         download_images(driver, output_directory, chapter)
-
-    #     if chapter == stop_after:
-    #         print(f"Max chapters to download reached! (Limit: {stop_after})")
-    #         break
-
-    #     next_chapter_button: str | None = find_next_chapter_button(driver)
-
-    #     if next_chapter_button == None:
-    #         print("Last chapter reached")
-    #         break
-
-    #     time.sleep(random.uniform(2.130, 2.267))
-    #     print("Next chapter")
-    #     driver.get(next_chapter_button)
-
-    #     time.sleep(random.uniform(1.213, 1.345))
+        with progress_bar as p:
+            for page in p.track(
+                chapter.pages, description=f"Downloading chapter {chapter.number}"
+            ):
+                with open(
+                    f"{output_directory}/chapters/{chapter.number}/{page.number}.{page.file_extension}",
+                    "wb",
+                ) as f:
+                    f.write(requests.get(page.image_url).content)
 
     driver.close()
 
