@@ -127,7 +127,10 @@ def main():
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
-        "--url", type=str, required=False, help="Chapter url to get chapters list (example: 'https://comick.app/comic/bleach/AgV11-chapter-1-en')"
+        "--url",
+        type=str,
+        required=False,
+        help="Chapter url to get chapters list (example: 'https://comick.app/comic/bleach/AgV11-chapter-1-en')",
     )
     parser.add_argument(
         "--output",
