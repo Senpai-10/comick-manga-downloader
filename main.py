@@ -14,6 +14,7 @@ from rich.progress import (
     TimeElapsedColumn,
     TimeRemainingColumn,
 )
+from rich.prompt import Prompt
 from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.webdriver import WebDriver
@@ -126,7 +127,7 @@ def main():
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
-        "--url", type=str, required=True, help="Chapter url to start downloading from"
+        "--url", type=str, required=False, help="Chapter url to start downloading from"
     )
     parser.add_argument(
         "--output",
@@ -144,7 +145,8 @@ def main():
 
     args = parser.parse_args()
 
-    url: str = args.url
+    url: str = args.url or Prompt.ask("Enter [bold green]url[/bold green]")
+
     output_directory: str = args.output or url.split("/")[-2]
     chapters_str: str = args.chapters
     chapters_to_download: list[str] = []
@@ -164,8 +166,6 @@ def main():
                 chapters_to_download.append(j)
         else:
             chapters_to_download.append(chapters_str)
-
-    assert len(url) != 0
 
     options = Options()
 
