@@ -2,6 +2,7 @@ import argparse
 import os
 import re
 import time
+import random
 
 import requests
 from rich.progress import (
@@ -12,12 +13,30 @@ from rich.progress import (
     TimeElapsedColumn,
     TimeRemainingColumn,
 )
-from selenium import webdriver
-from selenium.common.exceptions import NoSuchElementException
+
+# from selenium import webdriver
+from selenium.common.exceptions import StaleElementReferenceException
 from selenium.webdriver.common.by import By
-from selenium.webdriver.firefox.options import Options
-from selenium.webdriver.firefox.webdriver import WebDriver
-from selenium.webdriver.remote.webelement import WebElement
+
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.webdriver import WebDriver
+
+import undetected_chromedriver as uc
+from dataclasses import dataclass, field
+
+
+@dataclass
+class Page:
+    number: str
+    image_url: str
+
+
+@dataclass
+class Chapter:
+    id: str
+    number: str
+    url: str
+    pages: list[Page] = field(default_factory=list)
 
 
 def extract_chapter_number(text: str) -> str:
@@ -62,16 +81,45 @@ def is_cover_image(image_src: str) -> bool:
         return False
 
 
-def find_next_chapter_button(driver: WebDriver):
-    buttons = driver.find_elements(By.TAG_NAME, "button")
+def find_next_chapter_button(driver: WebDriver) -> str | None:
+    driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
 
-    for button in buttons:
-        if "Next" in button.text:
-            return button
+    div = driver.find_element(
+        By.CSS_SELECTOR, ".images-reader-container > div:nth-child(2)"
+    )
+
+    a_tags = div.find_elements(By.TAG_NAME, "a")
+
+    for i in a_tags:
+        text = i.find_elements(By.TAG_NAME, "button")[0].text
+        if text.startswith("Next"):
+            print(i.get_attribute("href"))
+            return i.get_attribute("href")
+
+
+def collect_pages(driver: WebDriver) -> list[Page]:
+    img_elements = driver.find_elements(By.TAG_NAME, "img")
+
+    pages = []
+
+    for image in img_elements:
+        image_src = image.get_attribute("src")
+        image_alt = image.get_attribute("alt")
+
+        if not image_src or not ".pictures/" in image_src:
+            continue
+
+        if image_alt:
+            page_number = extract_page_number(image_alt)
+
+            page = Page(page_number, image_src)
+
+            pages.append(page)
+
+    return pages
 
 
 def download_images(driver: WebDriver, output_directory: str, chapter: str):
-    driver.refresh()
     img_elements = driver.find_elements(By.TAG_NAME, "img")
 
     images = []
@@ -150,7 +198,13 @@ def main():
     parser.add_argument(
         "--force",
         action="store_true",
-        help="Redownload chapters",
+        help="Redownload all chapters",
+    )
+    parser.add_argument(
+        "--force-chapter",
+        nargs="+",
+        type=str,
+        help="Redownload list of chapters (Example: --force-chapter 1, 2, 3 | will redownload chapter 1, 2 and 3)",
     )
 
     args = parser.parse_args()
@@ -160,6 +214,17 @@ def main():
     output_directory: str = args.output or url.split("/")[-2]
     stop_after: str = args.stop_after
     force_redownload: bool = args.force
+    force_redownload_chapter = []
+
+    # expand ranges in list
+    for i in args.force_chapter or []:
+        if "-" in i:
+            start, end = i.split("-")
+            for j in range(int(start), int(end) + 1):
+                if str(j) not in force_redownload_chapter:
+                    force_redownload_chapter.append(str(j))
+        else:
+            force_redownload_chapter.append(i)
 
     assert len(url) != 0
     assert len(cf_clearance) != 0
@@ -170,52 +235,91 @@ def main():
     options.add_argument("--disable-gpu")
 
     print(f"Opening web browser, please wait!")
-    driver = webdriver.Firefox(options=options)
-
+    driver = uc.Chrome(options)
     driver.get(url)
-    driver.delete_cookie("cf_clearance")
-    driver.add_cookie({"name": "cf_clearance", "value": cf_clearance})
+    # driver.delete_cookie("cf_clearance")
+    # driver.add_cookie({"name": "cf_clearance", "value": cf_clearance})
 
     if not os.path.exists(output_directory):
         os.mkdir(output_directory)
     if not os.path.exists(f"{output_directory}/chapters"):
         os.mkdir(f"{output_directory}/chapters")
 
-    try:
-        view_page_button = driver.find_element(
-            By.XPATH,
-            "/html/body/div[2]/div/div/div/div[2]/div[2]/div/div/div/div[3]/div/button",
+    info_container = driver.find_elements(By.CLASS_NAME, "info-reader-container")[0]
+
+    selectors = info_container.find_elements(By.TAG_NAME, "select")[0]
+    manga_url = "/".join(list(url.split("/")[0:-1]))
+    chapters: list[Chapter] = []
+
+    # Collecting chapters
+    for option in selectors.find_elements(By.TAG_NAME, "option")[::-1]:
+        chapter_id = option.get_attribute("value")
+
+        text = option.text
+        chapter_number = ""
+
+        if " " in text:
+            chapter_number = text.split()[1]
+        else:
+            chapter_number = text
+
+        if not chapter_id:
+            continue
+
+        ch = Chapter(
+            chapter_id,
+            chapter_number,
+            f"{manga_url}/{chapter_id}-chapter-{chapter_number}-en",
         )
 
-        print("skipping age verification")
-        view_page_button.click()
-    except NoSuchElementException:
-        # No view page button found!
-        ...
+        chapters.append(ch)
 
-    while True:
-        chapter = extract_chapter_number(driver.current_url)
+    # Collecting pages
+    for chapter in chapters:
+        driver.get(chapter.url)
 
-        if (
-            os.path.exists(f"{output_directory}/chapters/{chapter}")
-            and force_redownload == False
-        ):
-            print(f"chapter: {chapter}, already downloaded skipping")
-        else:
-            download_images(driver, output_directory, chapter)
+        print(f"Collecting pages for chapter {chapter.number}")
+        chapter.pages = collect_pages(driver)
 
-        if chapter == stop_after:
-            print(f"Max chapters to download reached! (Limit: {stop_after})")
-            break
+    # try:
+    #     view_page_button = driver.find_element(
+    #         By.XPATH,
+    #         "/html/body/div[2]/div/div/div/div[2]/div[2]/div/div/div/div[3]/div/button",
+    #     )
 
-        next_chapter_button: WebElement | None = find_next_chapter_button(driver)
-        if next_chapter_button:
-            next_chapter_button.click()
-        else:
-            print("Last chapter reached")
-            break
+    #     print("skipping age verification")
+    #     view_page_button.click()
+    # except NoSuchElementException:
+    #     # No view page button found!
+    #     ...
 
-        time.sleep(1)
+    # while True:
+    #     chapter = extract_chapter_number(driver.current_url)
+
+    #     if (
+    #         os.path.exists(f"{output_directory}/chapters/{chapter}")
+    #         and force_redownload == False
+    #         and not chapter in force_redownload_chapter
+    #     ):
+    #         print(f"chapter: {chapter}, already downloaded skipping")
+    #     else:
+    #         download_images(driver, output_directory, chapter)
+
+    #     if chapter == stop_after:
+    #         print(f"Max chapters to download reached! (Limit: {stop_after})")
+    #         break
+
+    #     next_chapter_button: str | None = find_next_chapter_button(driver)
+
+    #     if next_chapter_button == None:
+    #         print("Last chapter reached")
+    #         break
+
+    #     time.sleep(random.uniform(2.130, 2.267))
+    #     print("Next chapter")
+    #     driver.get(next_chapter_button)
+
+    #     time.sleep(random.uniform(1.213, 1.345))
 
     driver.close()
 
